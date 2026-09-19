@@ -1,4 +1,4 @@
-# Web Stand-in · 6 Pro
+# GPT Web Stand-in · 6 Pro
 
 让 Codex 将有明确边界的研究、复杂分析或方案复核自动委派给 ChatGPT 网页 6 Pro，等待并保存完整回答，核验关键证据后继续原任务。
 
@@ -76,13 +76,6 @@ tests/test_task_record.py
 
 运行记录默认存放在任务项目的 `.web-stand-in/`，或用户指定的输出目录。记录会包含本机来源路径、所选材料和网页回答，应留在任务环境。本仓库仅收录上述维护文件，不包含真实会话链接、浏览器状态、账号数据或本地运行目录。若使用其他输出目录，维护者需相应更新忽略规则并检查提交内容。
 
-## 参考项目
-
-设计参考了以下固定版本的流程或执行机制；本仓库没有打包它们的代码，也不要求安装它们：
-
-- [steipete/oracle](https://github.com/steipete/oracle/tree/1866b14624db124b50226d3018b4f429d31308d4)：明确的执行路线、持久会话以及执行与等待的分工。
-- [scasella/codex-gpt-pro](https://github.com/scasella/codex-gpt-pro/tree/2a69f8021c9053a375f5fb88b13250b11880fcfb)：宿主驱动的网页 Pro 操作规程与发送前路线切换。
-- [anightmonarch/codex-bridge-chatgpt](https://github.com/anightmonarch/codex-bridge-chatgpt/tree/56e36c2feeb6705376c1d1dc50dbec52ea43d4f4)：有界材料包、结果匹配与本地采纳核验。
 
 ## 许可证
 
