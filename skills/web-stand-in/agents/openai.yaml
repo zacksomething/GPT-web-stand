@@ -1,0 +1,6 @@
+interface:
+  display_name: "Web Stand-in · 6 Pro"
+  short_description: "自动向 ChatGPT 网页 6 Pro 委派分析、回收核验并继续任务"
+  default_prompt: "使用 $web-stand-in 自动将本任务中值得独立分析的问题交给 ChatGPT 网页 6 Pro，核验推荐方案后继续完成原任务。"
+policy:
+  allow_implicit_invocation: true

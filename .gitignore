@@ -1,0 +1,19 @@
+# Local consultation records and developer evidence
+.web-stand-in/
+validation/
+runs/
+installed-runs/
+*.log
+
+# Python and local environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Local settings and credentials
+.env
+.env.*
+.DS_Store
+
