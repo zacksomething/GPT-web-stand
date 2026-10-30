@@ -57,6 +57,16 @@ python3 /path/to/web-stand-in/scripts/task_record.py verify-materials \
 
 `verify-materials` detects changed or missing source files; exit code 1 means review the change before adoption. Normal commands use exit 0; invalid operations use exit 2. A corruption error must be inspected, not bypassed by deleting evidence.
 
+## Resume local records after interruption
+
+Start a new helper process with `status --task <the same directory>`. This reads committed files; it does not restart a browser or schedule work. A process dying releases its advisory lock, even though `.record.lock` remains. Never remove or replace that file to unlock a task: other processes must lock the same inode.
+
+If `send_intent` was committed but its successful CLI response was lost, the next process still reports `submission_unknown` and refuses another reservation. Preserve that uncertainty and inspect the original chat. A process killed before atomic replacement leaves the previous committed file and may leave a `.write-*` temporary file. Temporary files are not recovery evidence and are never promoted automatically. The required successful reservation response must precede any browser send action.
+
+If `result.txt` was committed before interruption, re-capturing identical bytes is idempotent; different bytes remain a conflict. Capture and caller-observed completion stay separate. An interrupted `init` without `task.json` is not a usable task.
+
+Malformed or missing logs, invalid sequence numbers, mismatched request IDs and invalid observation fields cause `invalid_record`; unreadable manifests or invalid task identities cause `invalid_task`. The helper preserves these files for inspection instead of resetting state. These checks do not authenticate history: deletion of an entire log entry or substitution with another structurally valid record can be undetectable. Atomic replacement and `fsync` are not a tested guarantee against machine power loss, storage failure, or network-filesystem behavior.
+
 Keep `adoption.md` beside the request record with: accepted/rejected/deferred conclusions and reasons, decisive sources checked, material-version changes, actual local test results, actions taken, and unresolved limits. Store a concise `summary.md` when the answer is long. These are local judgments and remain separate from the raw answer and browser observations.
 
 Task directories contain local paths and potentially private materials. They are not automatically suitable to upload or publish. Do not upload the manifest or diagnostic output merely because it exists.

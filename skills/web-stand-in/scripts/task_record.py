@@ -97,11 +97,19 @@ def load_task(directory):
     record = task / "task.json"
     if record.is_symlink():
         raise RecordError("invalid_task", "task.json must not be a symlink.")
-    metadata = json.loads(record.read_text(encoding="utf-8"))
+    try:
+        metadata = json.loads(record.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise RecordError("invalid_task", "Cannot read task.json; preserve it for inspection.") from error
     if not isinstance(metadata, dict) or metadata.get("schema_version") != 1:
         raise RecordError("invalid_task", "Unsupported task record.")
     for field in ("task_id", "packet_id", "request_id"):
-        uuid.UUID(metadata[field])
+        try:
+            if not isinstance(metadata.get(field), str):
+                raise ValueError("Expected a UUID string.")
+            uuid.UUID(metadata[field])
+        except ValueError as error:
+            raise RecordError("invalid_task", "Invalid task identity: " + field) from error
     if not isinstance(metadata.get("materials"), list):
         raise RecordError("invalid_task", "Invalid material manifest.")
     return task, metadata
@@ -120,18 +128,41 @@ def task_lock(task):
             fcntl.flock(stream, fcntl.LOCK_UN)
 
 
-def read_observations(task):
+def validate_observation(observation, request_id):
+    if not isinstance(observation, dict) or set(observation) - OBSERVATION_FIELDS:
+        raise RecordError("invalid_observation", "Observation must be an object using documented fields.")
+    event = observation.get("event")
+    if not isinstance(event, str) or event not in EVENTS:
+        raise RecordError("invalid_observation", "Unknown observation event.")
+    if observation.get("request_id") != request_id:
+        raise RecordError("request_mismatch", "Observation does not belong to this request.")
+    if not isinstance(observation.get("evidence"), str) or not observation["evidence"].strip():
+        raise RecordError("invalid_observation", "A nonempty evidence description is required.")
+    for field in ("conversation_url", "remote_turn_id", "model_observed"):
+        if field in observation and not isinstance(observation[field], str):
+            raise RecordError("invalid_observation", field + " must be a string.")
+    if "details" in observation and not isinstance(observation["details"], dict):
+        raise RecordError("invalid_observation", "details must be an object.")
+
+
+def read_observations(task, request_id):
     path = task / "observations.json"
     if path.is_symlink():
         raise RecordError("invalid_record", "Observation log must not be a symlink.")
-    records = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(records, list) or any(
-        not isinstance(item, dict)
-        or not isinstance(item.get("observation"), dict)
-        or item["observation"].get("event") not in EVENTS
-        for item in records
-    ):
-        raise RecordError("invalid_record", "Invalid observation log; refusing to replace it.")
+    try:
+        records = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(records, list):
+            raise ValueError("Expected a list.")
+        for sequence, item in enumerate(records, start=1):
+            if (not isinstance(item, dict)
+                    or type(item.get("sequence")) is not int
+                    or item["sequence"] != sequence
+                    or not isinstance(item.get("recorded_at"), str)
+                    or not item["recorded_at"].strip()):
+                raise ValueError("Invalid observation sequence or timestamp.")
+            validate_observation(item.get("observation"), request_id)
+    except (OSError, ValueError, RecordError) as error:
+        raise RecordError("invalid_record", "Invalid observation log; preserve it for inspection.") from error
     return records
 
 
@@ -190,22 +221,10 @@ def record_observation(args):
     task, metadata = load_task(args.task)
     raw = read_text_bytes(Path(args.observation_file).expanduser().resolve(), MAX_OBSERVATION_BYTES)
     observation = json.loads(raw)
-    if not isinstance(observation, dict) or set(observation) - OBSERVATION_FIELDS:
-        raise RecordError("invalid_observation", "Observation must be an object using documented fields.")
+    validate_observation(observation, metadata["request_id"])
     event = observation.get("event")
-    if event not in EVENTS:
-        raise RecordError("invalid_observation", "Unknown observation event.")
-    if observation.get("request_id") != metadata["request_id"]:
-        raise RecordError("request_mismatch", "Observation does not belong to this request.")
-    if not isinstance(observation.get("evidence"), str) or not observation["evidence"].strip():
-        raise RecordError("invalid_observation", "A nonempty evidence description is required.")
-    for field in ("conversation_url", "remote_turn_id", "model_observed"):
-        if field in observation and not isinstance(observation[field], str):
-            raise RecordError("invalid_observation", field + " must be a string.")
-    if "details" in observation and not isinstance(observation["details"], dict):
-        raise RecordError("invalid_observation", "details must be an object.")
     with task_lock(task):
-        records = read_observations(task)
+        records = read_observations(task, metadata["request_id"])
         prior_submission = any(item["observation"]["event"] in {
             "send_intent", "submission_observed", "running_observed", "completion_observed"
         } for item in records)
@@ -225,7 +244,7 @@ def capture_result(args):
     data = read_text_bytes(Path(args.result_file).expanduser().resolve(), args.max_bytes)
     destination = task / "result.txt"
     with task_lock(task):
-        read_observations(task)  # Refuse to silently work around a damaged record.
+        read_observations(task, metadata["request_id"])  # Refuse to bypass a damaged record.
         if destination.is_symlink():
             raise RecordError("invalid_result_path", "Stored result must not be a symlink.")
         existed = destination.exists()
@@ -268,7 +287,7 @@ def verify_materials(args):
 def status(args):
     task, metadata = load_task(args.task)
     with task_lock(task):
-        records = read_observations(task)
+        records = read_observations(task, metadata["request_id"])
         state = "prepared"
         for entry in records:
             state = EVENT_STATES.get(entry["observation"]["event"], state)

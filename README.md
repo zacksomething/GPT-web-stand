@@ -25,7 +25,8 @@ Python 助手保存请求身份、材料快照、发送保留、观察和答案�
 | ChatGPT | 用户自己的可用登录态，并能在网页明确选择 6 Pro；不附带账号、订阅或凭据 |
 | 本地助手 | Python 3.9+ 标准库；使用 `fcntl` 和 POSIX 文件能力，面向 macOS/Linux；原生 Windows 不支持 |
 | 已实测的网页路线 | macOS 上运行中的 Codex，通过 `cua_repl` 原生 Chrome accessibility 完成纯文本咨询 |
-| 其他环境 | Linux 助手及其他宿主浏览器路线尚未实际验证；仅有 Skill 格式支持不等于端到端兼容 |
+| Linux 本地记录 | 已在 Ubuntu 24.04 / Python 3.12 运行离线记录测试；进程中断与重新读取范围见 [VALIDATION.md](VALIDATION.md) |
+| 其他宿主浏览器路线 | 尚未实际验证；本地记录测试通过不等于浏览器会话恢复或端到端兼容 |
 | 可选外部执行器 | 不依赖 Oracle、额外 MCP 服务、API key 或其他仓库代码 |
 
 UI 布局和模型名称需要按当前可见页面确认。内置浏览器曾发生导航超时；宿主与用户允许时，可在任何发送尝试之前切换另一条可用 UI 路线。发送状态不确定时恢复原会话，不能换聊天重复发送。
@@ -53,10 +54,18 @@ UI 布局和模型名称需要按当前可见页面确认。内置浏览器曾�
 从仓库根目录运行，不需要网络或 ChatGPT 账号：
 
 ```sh
-python3 -B -m unittest discover -s tests -p test_task_record.py -v
+python3 -B -m unittest discover -s tests -p 'test_task_record*.py' -v
 ```
 
-详细范围见 [VALIDATION.md](VALIDATION.md)。测试只验证本地记录逻辑；浏览器登录、选模型、发送和回收需要真实环境验证。
+详细范围见 [VALIDATION.md](VALIDATION.md)。Linux GitHub Actions 在 push、pull request 或手动触发时运行同一套测试，覆盖 Python 3.9 与 3.13；工作流配置不代表对应运行已经通过。
+
+这里区分三个层次：
+
+| 层次 | 当前证据与边界 |
+|---|---|
+| 本地记录助手在 Linux 运行 | 离线测试验证锁、原子替换、重复发送保护、损坏记录拒绝和新进程读取已有状态；不接触浏览器 |
+| 浏览器宿主恢复原会话 | 仍需实测宿主退出重启、登录态、会话与回答绑定，以及回收完整回答；记录文件本身不能完成这些动作 |
+| Mac 关机后云端持续工作 | 尚未验证；没有独立后台执行器。本次测试未连接 ECS，也未证明云端网络可达、任务持续调度或自动唤醒 |
 
 ## 仓库内容与运行数据
 
@@ -71,7 +80,8 @@ skills/web-stand-in/
   references/browser-workflow.md
   references/task-records.md
   scripts/task_record.py
-tests/test_task_record.py
+tests/test_task_record*.py
+.github/workflows/local-records.yml
 ```
 
 运行记录默认存放在任务项目的 `.web-stand-in/`，或用户指定的输出目录。记录会包含本机来源路径、所选材料和网页回答，应留在任务环境。本仓库仅收录上述维护文件，不包含真实会话链接、浏览器状态、账号数据或本地运行目录。若使用其他输出目录，维护者需相应更新忽略规则并检查提交内容。
